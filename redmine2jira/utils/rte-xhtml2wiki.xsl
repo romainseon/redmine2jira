@@ -1,8 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<xsl:stylesheet version="1.0"
-  xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
-  xmlns:xhtml="http://www.w3.org/1999/xhtml"
-  xmlns:lookup="http://www.fundi.com.au/">
+<xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:xhtml="http://www.w3.org/1999/xhtml" xmlns:lookup="http://www.fundi.com.au/">
 
 <!--
 
@@ -64,12 +61,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
   <xsl:template match="xhtml:h1 | xhtml:h2 | xhtml:h3 | xhtml:h4 | xhtml:h5 | xhtml:h6">
     <xsl:choose>
-      <xsl:when test="not(parent::*=/* and position() = 1)"><xsl:text>&#xa;</xsl:text></xsl:when>
+      <xsl:when test="not(parent::*=/* and position() = 1)"><xsl:text>
+</xsl:text></xsl:when>
     </xsl:choose>
     <xsl:value-of select="local-name(.)"/>
     <xsl:text>. </xsl:text>
     <xsl:apply-templates/>
-    <xsl:text>&#xa;</xsl:text>
+    <xsl:text>
+</xsl:text>
   </xsl:template>
 
   <!-- Text effects -->
@@ -140,26 +139,34 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   <!-- Preformatted -->
   <xsl:template match="xhtml:pre">
     <xsl:if test="parent::*=/*">
-      <xsl:text>&#xa;</xsl:text>
+      <xsl:text>
+</xsl:text>
     </xsl:if>
-    <xsl:text>{noformat}&#xa;</xsl:text>
+    <xsl:text>{noformat}
+</xsl:text>
     <xsl:apply-templates/>
-    <xsl:text>&#xa;{noformat}&#xa;</xsl:text>
+    <xsl:text>
+{noformat}
+</xsl:text>
     <xsl:if test="parent::*=/*">
-      <xsl:text>&#xa;</xsl:text>
+      <xsl:text>
+</xsl:text>
     </xsl:if>
   </xsl:template>
 
   <!-- Quote -->
   <xsl:template match="xhtml:blockquote">
     <xsl:if test="parent::*=/*">
-      <xsl:text>&#xa;</xsl:text>
+      <xsl:text>
+</xsl:text>
     </xsl:if>
-    <xsl:text>{quote}&#xa;</xsl:text>
+    <xsl:text>{quote}
+</xsl:text>
     <xsl:apply-templates/>
     <xsl:text>{quote}</xsl:text>
     <xsl:if test="parent::*=/*">
-      <xsl:text>&#xa;</xsl:text>
+      <xsl:text>
+</xsl:text>
     </xsl:if>
   </xsl:template>
 
@@ -187,19 +194,22 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
   <!-- Line break nested in pre element -->
   <xsl:template match="xhtml:br[ancestor::xhtml:pre]">
-    <xsl:text>&#xa;</xsl:text>
+    <xsl:text>
+</xsl:text>
   </xsl:template>
 
   <!-- Line break (that is not a descendant of a pre element, or a "bogus" line break inserted by the editor, or precedes a list) -->
   <xsl:template match="xhtml:br[not(ancestor::xhtml:pre) and not(@data-mce-bogus='1') and not(following-sibling::xhtml:ul) and not(following-sibling::xhtml:ol)]">
-    <xsl:text>\\&#xa;</xsl:text>
+    <xsl:text>\\
+</xsl:text>
   </xsl:template>
 
   <!-- Paragraph -->
   <xsl:template match="xhtml:p">
   <!-- Insert newline before paragraph, unless it is the first element of the document, or the first child of a list item or table cell -->
     <xsl:if test="not(.=parent::*/*[position()=1]) and not(.=parent::xhtml:li/*[1]) and not(.=parent::xhtml:td/*[1]) and not(.=parent::xhtml:th/*[1])">
-      <xsl:text>&#xa;</xsl:text>
+      <xsl:text>
+</xsl:text>
     </xsl:if>
     <xsl:apply-templates/>
     <xsl:choose>
@@ -210,14 +220,16 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         <xsl:text>\\ \\</xsl:text>
       </xsl:when>
       <xsl:otherwise>
-        <xsl:text>&#xa;</xsl:text>
+        <xsl:text>
+</xsl:text>
       </xsl:otherwise>
     </xsl:choose>
   </xsl:template>
 
   <!-- Paragraph nested in list: insert explicit line breaks for all but first paragraph -->
-  <xsl:template match="xhtml:li/xhtml:p[position() > 1]">
-    <xsl:text>\\ \\&#xa;</xsl:text>
+  <xsl:template match="xhtml:li/xhtml:p[position() &gt; 1]">
+    <xsl:text>\\ \\
+</xsl:text>
     <xsl:apply-templates/>
   </xsl:template>
 
@@ -230,7 +242,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
   <!-- Horizontal rules -->
   <xsl:template match="xhtml:hr">
-    <xsl:text>&#xa;----&#xa;</xsl:text>
+    <xsl:text>
+----
+</xsl:text>
   </xsl:template>
 
   <!-- Lists -->
@@ -239,7 +253,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   <xsl:template match="xhtml:ol/xhtml:li | xhtml:ul/xhtml:li">
     <!-- Insert newline before list item, unless it is the first item of a list that is the first child of a table cell -->
     <xsl:if test="not(.=parent::*/xhtml:li[1] and parent::*=parent::*/parent::xhtml:td/*[1])">
-      <xsl:text>&#xa;</xsl:text>
+      <xsl:text>
+</xsl:text>
     </xsl:if>
     <!-- Insert the appropriate list item characters, depending on the ancestor lists -->
     <xsl:for-each select="ancestor::*[local-name(.)='ol' or local-name(.)='ul']">
@@ -255,7 +270,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   <!-- Insert newline after list (that is not nested) -->
   <xsl:template match="xhtml:ol[parent::*=/*] | xhtml:ul[parent::*=/*]">
     <xsl:apply-templates/>
-    <xsl:text>&#xa;</xsl:text>
+    <xsl:text>
+</xsl:text>
   </xsl:template>
 
   <!-- Links -->
@@ -331,7 +347,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   <!-- Table data cell -->
   <xsl:template match="xhtml:td">
     <xsl:if test="position() = 1">
-      <xsl:text>&#xa;|</xsl:text>
+      <xsl:text>
+|</xsl:text>
     </xsl:if>
     <xsl:apply-templates/>
     <xsl:text>|</xsl:text>
@@ -340,7 +357,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   <!-- Table header cell -->
   <xsl:template match="xhtml:th">
     <xsl:if test="position() = 1">
-      <xsl:text>&#xa;||</xsl:text>
+      <xsl:text>
+||</xsl:text>
     </xsl:if>
     <xsl:apply-templates/>
     <xsl:text>||</xsl:text>
@@ -349,7 +367,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   <!-- Insert newline after table -->
   <xsl:template match="xhtml:table">
     <xsl:apply-templates/>
-    <xsl:text>&#xa;</xsl:text>
+    <xsl:text>
+</xsl:text>
   </xsl:template>
 
   <!-- Images -->
@@ -373,7 +392,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     <xsl:variable name="macro" select="@data-macro-name"/>
     <xsl:variable name="indent" select="substring($spaces, 1, count(ancestor::*[local-name()='macro']) * $indentStep)"/>
     <xsl:if test="parent::*=/*">
-      <xsl:text>&#xa;</xsl:text>
+      <xsl:text>
+</xsl:text>
     </xsl:if>
     <xsl:if test="document('')/*/lookup:macros/lookup:macro[@name=$macro and @indent='yes']">
       <xsl:value-of select="$indent"/>
@@ -392,7 +412,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     </xsl:if>
     <xsl:text>}</xsl:text>
     <xsl:if test="parent::*=/* or document('')/*/lookup:macros/lookup:macro[@name=$macro and @type='blockwrapper']">
-      <xsl:text>&#xa;</xsl:text>
+      <xsl:text>
+</xsl:text>
     </xsl:if>
     <xsl:if test="@data-macro-body-type='RICH_TEXT' or @data-macro-body-type='PLAIN_TEXT'">
       <xsl:if test="@data-macro-body-type='RICH_TEXT'">
@@ -402,7 +423,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
       <xsl:apply-templates select="xhtml:tbody/xhtml:tr/xhtml:td/xhtml:pre/node()"/>
       </xsl:if>
       <xsl:if test="$macro='code'">
-        <xsl:text>&#xa;</xsl:text>
+        <xsl:text>
+</xsl:text>
       </xsl:if>
       <xsl:if test="document('')/*/lookup:macros/lookup:macro[@name=$macro and @indent='yes' and @type='blockwrapper']">
         <xsl:value-of select="$indent"/>
@@ -410,9 +432,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
       <xsl:text>{</xsl:text>
       <xsl:value-of select="$macro"/>
       <xsl:text>}</xsl:text>
-      <xsl:if test="not(document('')/*/lookup:macros/lookup:macro[@name=$macro and @type='inline'])
-        and not(parent::*[local-name()='li'] and .=parent::*/*[position()=last()])">
-        <xsl:text>&#xa;</xsl:text>
+      <xsl:if test="not(document('')/*/lookup:macros/lookup:macro[@name=$macro and @type='inline'])         and not(parent::*[local-name()='li'] and .=parent::*/*[position()=last()])">
+        <xsl:text>
+</xsl:text>
       </xsl:if>
     </xsl:if>
   </xsl:template>
@@ -484,7 +506,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     <xsl:variable name="input" select="."/>
     <xsl:variable name="firstChar" select="substring($input, 1, 1)"/>
     <!-- If the text node begins with whitespace, then reinstate a single leading space -->
-    <xsl:if test="translate($firstChar, '&#xa; ', '') = ''">
+    <xsl:if test="translate($firstChar, '&#xA; ', '') = ''">
       <xsl:text> </xsl:text>
     </xsl:if>
     <xsl:value-of select="normalize-space(.)"/>
@@ -494,7 +516,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     <xsl:variable name="input" select="."/>
     <xsl:variable name="firstChar" select="substring($input, 1, 1)"/>
     <!-- If the text node begins with whitespace, then reinstate a single leading space -->
-    <xsl:if test="translate($firstChar, '&#xa; ', '') = ''">
+    <xsl:if test="translate($firstChar, '&#xA; ', '') = ''">
       <xsl:text> </xsl:text>
     </xsl:if>
     <xsl:value-of select="normalize-space(.)"/>
@@ -506,15 +528,17 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   </xsl:template>
 
   <xsl:template match="xhtml:div[@class='innerCell'][preceding::xhtml:div[@class='innerCell']]">
-    <xsl:text>&#xa;----&#xa;</xsl:text>
+    <xsl:text>
+----
+</xsl:text>
     <xsl:apply-templates/>
   </xsl:template>
 
   <!-- Utility templates -->
   <xsl:template name="decimal2hex2digits">
-    <xsl:param name="decimal" />
+    <xsl:param name="decimal"/>
     <xsl:choose>
-      <xsl:when test="$decimal > 0">
+      <xsl:when test="$decimal &gt; 0">
         <xsl:call-template name="decimal2hex">
           <xsl:with-param name="decimal" select="$decimal"/>
         </xsl:call-template>
@@ -524,14 +548,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   </xsl:template>
   
   <xsl:template name="decimal2hex">
-    <xsl:param name="decimal" />
-    <xsl:if test="$decimal > 0">
+    <xsl:param name="decimal"/>
+    <xsl:if test="$decimal &gt; 0">
       <xsl:call-template name="decimal2hex">
-        <xsl:with-param name="decimal" select="floor($decimal div 16)" />
+        <xsl:with-param name="decimal" select="floor($decimal div 16)"/>
       </xsl:call-template>
       <xsl:choose>
         <xsl:when test="$decimal mod 16 &lt; 10">
-          <xsl:value-of select="$decimal mod 16" />
+          <xsl:value-of select="$decimal mod 16"/>
         </xsl:when>
         <xsl:otherwise>
           <xsl:choose>

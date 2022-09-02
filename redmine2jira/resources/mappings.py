@@ -186,7 +186,7 @@ ISSUE_CUSTOM_FIELD_TYPE_MAPPINGS = {
              'multiple': 'com.atlassian.jira.plugin.system.'
                          'customfieldtypes:multiuserpicker'},
     'version': {'single': 'com.atlassian.jira.plugin.system.'
-                          'customfieldtypes:version',
+                          'customfieldtypes:textarea',
                 'multiple': 'com.atlassian.jira.plugin.system.'
-                            'customfieldtypes:multiversion'}
+                            'customfieldtypes:multiselect'}
 }

@@ -91,15 +91,18 @@ def xhtml2confluence_wiki(xhtml):
     from pkg_resources import resource_stream
 
 # rte-xhtml2wiki.xsl from http://www.amnet.net.au/~ghannington/confluence/wikifier/rt/rte-xhtml2wiki.xsl
-    with closing(StringIO()) as xml:
-        xml.write(u'<body xmlns="http://www.w3.org/1999/xhtml">\n')
-        xml.write(xhtml)
-        xml.write(u'\n</body>')
-        xml_string = xml.getvalue()
-        dom = et.fromstring(xml_string)
-        xsl_stream = resource_stream(__name__, 'rte-xhtml2wiki.xsl')
-        xsl = et.parse(xsl_stream)
-        transform = et.XSLT(xsl)
-        confluence_wiki = unicode(transform(dom))
+    try:
+        with closing(StringIO()) as xml:
+            xml.write(u'<body xmlns="http://www.w3.org/1999/xhtml">\n')
+            xml.write(xhtml)
+            xml.write(u'\n</body>')
+            xml_string = xml.getvalue()
+            dom = et.fromstring(xml_string)
+            xsl_stream = resource_stream(__name__, 'rte-xhtml2wiki.xsl')
+            xsl = et.parse(xsl_stream)
+            transform = et.XSLT(xsl)
+            confluence_wiki = str(transform(dom))
 
-    return confluence_wiki
+        return confluence_wiki
+    except:
+        return xhtml

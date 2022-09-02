@@ -7,7 +7,6 @@ from __future__ import unicode_literals
 
 from builtins import str
 import json
-from pydoc import describe
 
 try:
     from contextlib import suppress
@@ -18,7 +17,6 @@ from datetime import datetime, timedelta
 from itertools import chain
 from operator import itemgetter
 
-import re
 import click
 
 from click.exceptions import ClickException, UsageError
@@ -54,7 +52,8 @@ class IssuesExporter(object):
     compatible with the Jira Importer Plugin (JIM).
     """
 
-    def __init__(self, output, verbose, pretty_print, export_issues, export_links, check_config=False):
+    def __init__(self, output, verbose, pretty_print, export_issues,
+            export_links, check_config=False):
         if check_config:
             IssuesExporter._validate_config()
 
@@ -72,7 +71,6 @@ class IssuesExporter(object):
         self._users = {user.id: user
                        for user in chain(redmine.user.all(),
                                          redmine.user.filter(status=3))}
-
         self._groups = None
 
         if config.ALLOW_ISSUE_ASSIGNMENT_TO_GROUPS:
@@ -101,13 +99,13 @@ class IssuesExporter(object):
         # and store them by project ID and, respectively,
         # by issue category ID and version ID
 
-        self._issue_categories = {
-            project.id: {
-                issue_category.id: issue_category
-                for issue_category in project.issue_categories
-            }
-            for project in self._projects.values()
-        }
+        # self._issue_categories = {
+        #     project.id: {
+        #         issue_category.id: issue_category
+        #         for issue_category in project.issue_categories
+        #     }
+        #     for project in self._projects.values()
+        # }
 
         # To build versions dictionary on a per project basis
         # we need to ignore 403 errors for projects where
@@ -220,7 +218,7 @@ class IssuesExporter(object):
 
             # Save required standard fields
             self._save_id(issue.id, issue_export)
-            self._save_subject(issue.subject, issue_export)
+            self._save_subject(issue, issue_export)
             self._save_author(issue.author, issue_export)
             self._save_tracker(issue.tracker, issue_export)
             self._save_status(issue.status, issue_export)
@@ -228,28 +226,28 @@ class IssuesExporter(object):
             if hasattr(issue, 'created_on'):
                 created_on = issue.created_on
             else:
-                created_on = datetime(1900, 01, 01, 00, 00)  # M.Kendall 20191209 no created_on date isn't normal but can happen
+                created_on = datetime(1900, 1, 1, 00, 00)
             self._save_created_on(created_on, issue_export)
             self._save_updated_on(issue.updated_on, issue_export)
 
             # Save optional standard fields
             if hasattr(issue, 'description'):
-                self._save_description(issue.description, issue_export)
+                self._save_description(issue, issue_export)
 
             if hasattr(issue, 'assigned_to'):
                 self._save_assigned_to(issue.assigned_to, issue_export)
 
-            if hasattr(issue, 'category'):
-                self._save_category(issue.category, issue.project.id,
-                                    project_export, issue_export)
+            # if hasattr(issue, 'category'):
+            #     self._save_category(issue.category, issue.project.id,
+            #                         project_export, issue_export)
 
-            if hasattr(issue, 'estimated_hours'):
-                self._save_estimated_hours(issue.estimated_hours, issue_export)
+            # if hasattr(issue, 'estimated_hours'):
+            #     self._save_estimated_hours(issue.estimated_hours, issue_export)
 
-            # Save custom fields
-            if hasattr(issue, 'custom_fields'):
-                self._save_custom_fields(issue.custom_fields, issue.project.id,
-                                         issue_export)
+            # # Save custom fields
+            # if hasattr(issue, 'custom_fields'):
+            #     self._save_custom_fields(issue.custom_fields, issue.project.id,
+            #          issue_export, str(issue.id))
 
             # Save related resources
             self._save_watchers(issue.watchers, issue_export)
@@ -259,13 +257,20 @@ class IssuesExporter(object):
 
             # TODO Save sub-tasks
             if hasattr(issue, 'parent_id'):
-                click.echo("WARNING: Parent link will be lost for issue #{:d}, parent is #{:d}".format(issue.id, issue.parent_id))
+                click.echo(
+                    "WARNING: Parent link will be lost for issue #{:d},"
+                    "parent is #{:d}".format(issue.id, issue.parent_id))
 
-            # Save relations M.Kendall 2019-12-11, Jira import has a bug that means you can see 'a' blocks 'b' and 'b' blocks 'a'
+            # Save relations M.Kendall 2019-12-11,
+            # Jira import has a bug that means you can see 'a' blocks 'b'
+            # and 'b' blocks 'a'
             # when the second relationship should be 'b' is blocked by 'a'
-            self._save_relationships(issue.relations, links_export)
+            # self._save_relationships(issue.relations, links_export)
 
             # TODO time tracking
+            issue_export['key'] = '%s-%s' % (project_export['key'],
+                issue_export['externalId'])
+            issue_export.pop('externalId')
 
         if self.pretty_print:
             json.dump(issues_export, self.output, indent=4)
@@ -321,14 +326,15 @@ class IssuesExporter(object):
         """
         return str(issue_id)
 
-    def _save_subject(self, subject, issue_export):
+    def _save_subject(self, issue, issue_export):
         """
         Save issue subject in the export dictionary.
 
         :param subject: Issue subject
         :param issue_export: Single issue export dictionary
         """
-        issue_export['summary'] = self._get_subject_mapping(subject)
+        # subject = '#%s# %s' % (issue.id, issue.subject)
+        issue_export['summary'] = self._get_subject_mapping(issue.subject)
 
     @staticmethod
     def _get_subject_mapping(subject):
@@ -458,24 +464,36 @@ class IssuesExporter(object):
 
     @staticmethod
     def _site_specific_description_fixups(description, issue_id):
-        if issue_id == '11192':
-            description = re.sub("##########", "<notextile>##########</notextile>",
-                                 description)
+        # if issue_id == '11192':
+        #     description = re.sub("##########",
+        # "<notextile>##########</notextile>",
+        #                          description)
 
-        if issue_id == '11900':
-            description = re.sub("\*\* Note that with", "* Note that with",
-                                 description)
+        # if issue_id == '11900':
+        #     description = re.sub("\*\* Note that with", "* Note that with",
+        #                          description)
 
         return description
 
-    def _save_description(self, description, issue_export):
+    def add_author_to_message(self, user, message):
+        redmine_user = self._users[user.id]
+        if self._get_resource_mapping(redmine_user) == 'unknown':
+            message = '*%s %s* a dit\\\\%s' % (redmine_user.lastname,
+                redmine_user.firstname, message)
+        return message
+
+    def _save_description(self, issue, issue_export):
         """
         Save issue description in the export dictionary.
 
         :param description: Issue description
         :param issue_export: Single issue export dictionary
         """
-        fixed_up_description = self._get_description_mapping(description, issue_export['externalId'])
+        description = self.add_author_to_message(issue.author,
+            issue.description)
+
+        fixed_up_description = self._get_description_mapping(description,
+            issue_export['externalId'])
         issue_export['description'] = fixed_up_description
 
     @staticmethod
@@ -487,7 +505,9 @@ class IssuesExporter(object):
         :return: Jira value mapping for the description
         """
         if config.REDMINE_TEXT_FORMATTING != 'none':
-            fixed_up_description = IssuesExporter._site_specific_description_fixups(description, issue_id)
+            fixed_up_description = \
+                IssuesExporter._site_specific_description_fixups(description,
+                issue_id)
             description = text2confluence_wiki(fixed_up_description)
 
         return description
@@ -505,16 +525,20 @@ class IssuesExporter(object):
         :param issue_export: Single issue export dictionary
         """
         # If the assignee is a group...
+        assigned_to_jira = None
         if config.ALLOW_ISSUE_ASSIGNMENT_TO_GROUPS and \
            assigned_to.id in self._groups:
-            assigned_to = \
+            assigned_to_jira = \
                 self._get_assigned_to_mapping(self._groups[assigned_to.id])
         # ...else if the assignee is a user...
         else:
-            assigned_to = \
-                self._get_assigned_to_mapping(self._users[assigned_to.id])
+            assigned_to_redmine = self._users.get(assigned_to.id, None)
+            if assigned_to_redmine:
+                assigned_to_jira = self._get_assigned_to_mapping(
+                    assigned_to_redmine)
 
-        issue_export['assignee'] = assigned_to
+        if assigned_to_jira:
+            issue_export['assignee'] = assigned_to_jira
 
     def _get_assigned_to_mapping(self, assigned_to):
         """
@@ -586,7 +610,8 @@ class IssuesExporter(object):
         """
         return duration_isoformat(timedelta(hours=estimated_hours))
 
-    def _save_custom_fields(self, custom_fields, project_id, issue_export):
+    def _save_custom_fields(self, custom_fields, project_id, issue_export,
+            issue_id):
         """
         Save issue custom fields to export dictionary.
 
@@ -594,10 +619,19 @@ class IssuesExporter(object):
         :param project_id: ID of the project the issue belongs to
         :param issue_export: Single issue export dictionary
         """
+        issue_export['customFieldValues'] = []
+        issue_export['customFieldValues'].append({
+                'fieldName': 'redmine_id',
+                'fieldType':
+                "com.atlassian.jira.plugin.system.customfieldtypes:textfield",
+                'value': issue_id
+            })
         for custom_field in custom_fields:
             custom_field_def = self._issue_custom_fields[custom_field.id]
 
             field_name = self._get_custom_field_mapping(custom_field)
+            if field_name == 'DoNotMigrate':
+                continue
 
             format_mapping = ISSUE_CUSTOM_FIELD_TYPE_MAPPINGS[
                 custom_field_def.field_format]
@@ -608,13 +642,14 @@ class IssuesExporter(object):
                 else format_mapping['single']
 
             value = self._get_custom_field_value_mapping(custom_field,
-                                                         project_id)
-
+                 project_id)
+            if not value:
+                continue
             custom_field_dict = {
                 'fieldName': field_name,
                 'fieldType': field_type,
                 'value': value
-            }
+                }
 
             issue_export.setdefault('customFieldValues', []) \
                         .append(custom_field_dict)
@@ -683,14 +718,24 @@ class IssuesExporter(object):
                         include_internal_id=include_internal_id)
             elif custom_field_def.field_format == 'version':
                 if getattr(custom_field_def, 'multiple', False):
-                    version_ids = set(map(int, redmine_value))
-                    jira_value = [
-                        self._get_resource_mapping(version)
-                        for version_id, version in
-                        self._versions[project_id].items()
-                        if version_id in version_ids
-                    ]
+                    # jira_value = [
+                    #     self._get_resource_mapping(version)
+                    #     for version_id, version in
+                    #     self._versions[project_id].items()
+                    #     if version_id in version_ids
+                    # ]
+                    if hasattr(redmine_value, 'name'):
+                        jira_value = redmine_value.name
+                    else:
+                        jira_value = []
+                        for v_id in redmine_value:
+                            for version_dict in self._versions.values():
+                                if int(v_id) in version_dict:
+                                    jira_value.append(
+                                        version_dict[int(v_id)].name)
+                                    break
                 else:
+                    raise
                     version_id = int(redmine_value)
                     jira_value = self._get_resource_mapping(
                         self._versions[project_id][version_id])
@@ -732,7 +777,7 @@ class IssuesExporter(object):
                 "attacher": attacher,
                 "created": attachment.created_on.isoformat(),
                 "uri": attachment.content_url + "?key=" +
-                    config.REDMINE_API_KEY,
+                config.REDMINE_API_KEY,
                 "description": attachment.description
             }
 
@@ -802,16 +847,16 @@ class IssuesExporter(object):
             if getattr(journal, 'notes', None):
                 self._save_journal_notes(journal, issue_export)
 
-            # If the journal item contains details of changed properties...
-            if getattr(journal, 'details', None):
+            # # If the journal item contains details of changed properties...
+            # if getattr(journal, 'details', None):
 
-                tmp_issue_custom_fields = None
+            #     tmp_issue_custom_fields = None
 
-                if hasattr(issue, 'custom_fields'):
-                    tmp_issue_custom_fields = issue.custom_fields
+            #     if hasattr(issue, 'custom_fields'):
+            #         tmp_issue_custom_fields = issue.custom_fields
 
-                self._collect_journal_details(journal, tmp_issue_custom_fields,
-                                              journal_details_by_properties)
+            #     self._collect_journal_details(journal, tmp_issue_custom_fields,
+            #                                   journal_details_by_properties)
 
         # 1st processing: Coalesce journal details on a per-property basis
         self._coalesce_journal_details(issue, journal_details_by_properties,
@@ -827,21 +872,24 @@ class IssuesExporter(object):
 
     @staticmethod
     def _site_specific_journal_fixups(comment, issue_id):
-        if issue_id == '10056':
-            # Ordered list starts with 2 hashes instead of one which redmine is happy about but not Python's textile converter
-            comment = re.sub("##", '#', comment)
+        # if issue_id == '10056':
+        #     # Ordered list starts with 2 hashes instead of one which redmine
+        # is happy about but not Python's textile converter
+        #     comment = re.sub("##", '#', comment)
 
-        if issue_id == '10891':
-            # Ordered list starts with 2 asterisks instead of one which redmine is happy about but not Python's textile converter
-            comment = re.sub("\\*\\*", '*', comment)
+        # if issue_id == '10891':
+        #     # Ordered list starts with 2 asterisks instead of one which
+        # redmine is happy about but not Python's textile converter
+        #     comment = re.sub("\\*\\*", '*', comment)
 
-        if issue_id == '11192':
-            comment = re.sub("##########", "<notextile>##########</notextile>",
-                             comment)
+        # if issue_id == '11192':
+        #     comment = re.sub("##########",
+        # "<notextile>##########</notextile>",
+        #                      comment)
 
-        if issue_id == '11900':
-            comment = re.sub("\*\* Note that with", "* Note that with",
-                             comment)
+        # if issue_id == '11900':
+        #     comment = re.sub("\*\* Note that with", "* Note that with",
+        #                      comment)
 
         return comment
 
@@ -852,13 +900,18 @@ class IssuesExporter(object):
         :param journal: Issue journal item
         :param issue_export: Single issue export dictionary
         """
-        author = self._get_resource_mapping(self._users[journal.user.id])
+        redmine_user = None
+        if journal.user.id in self._users:
+            redmine_user = self._users[journal.user.id]
+            author = self._get_resource_mapping(redmine_user)
 
         comment_body = journal.notes
 
         if config.REDMINE_TEXT_FORMATTING != 'none':
-            fixed_up_comment = IssuesExporter._site_specific_journal_fixups(comment_body,
-                issue_export['externalId'])
+            fixed_up_comment = IssuesExporter._site_specific_journal_fixups(
+                comment_body, issue_export['externalId'])
+            fixed_up_comment = self.add_author_to_message(journal.user,
+                fixed_up_comment)
             comment_body = text2confluence_wiki(fixed_up_comment)
 
         comment_dict = {
@@ -976,7 +1029,8 @@ class IssuesExporter(object):
                     new_journal_detail = journal_detail
 
                 for value_type in ['old_value', 'new_value']:
-                    if value_type in journal_detail:
+                    if (value_type in journal_detail
+                            and property_name != 'category_id'):
                         journal_detail[value_type] = \
                             self._lookup_journal_detail_property_value(
                                 property_name, journal_detail['property'],
@@ -1006,7 +1060,7 @@ class IssuesExporter(object):
                             identifying_field = \
                                 field.related_resource.get_identifying_field()
                             current_string_value = getattr(current_value,
-                                                           identifying_field)
+                               identifying_field, None)
                         else:
                             field_name = property_name
                             current_value = getattr(issue, field_name, None)
@@ -1144,9 +1198,10 @@ class IssuesExporter(object):
                 if custom_field_def.field_format == 'user':
                     resources_dict = self._users
                 elif custom_field_def.field_format == 'version':
-                    resources_dict = self._versions
+                    resources_dict = self._versions[project_id]
 
-                if getattr(custom_field_def, 'multiple', False):
+                if getattr(custom_field_def, 'multiple', False) and isinstance(
+                        property_value, list):
                     ret = [v for k, v in resources_dict.items()
                            if k in property_value]
                 else:
@@ -1214,6 +1269,8 @@ class IssuesExporter(object):
             # Sort journal details by name and type (attribute / custom field)
             for detail in sorted(sorted(journal['details'], key=sort_type),
                                  key=itemgetter('name')):
+                if detail['name'] in ['category_id', 'fixed_version_id']:
+                    continue
                 field, field_type = None, None
                 from_internal_value, from_string = None, None
                 to_internal_value, to_string = None, None
@@ -1227,7 +1284,7 @@ class IssuesExporter(object):
                         field, internal_value, string_value = \
                             self._get_journal_detail_field_mapping(
                                 detail['name'], detail[value_type], project_id,
-                                  issue_export['externalId'])
+                                issue_export['externalId'])
                     elif detail['property'] == 'cf':
                         field_type = 'custom'
                         field, internal_value, string_value = \
@@ -1259,8 +1316,11 @@ class IssuesExporter(object):
                         event = next((event for event in history
                                       if event['created'] == created))
                     except StopIteration:
-                        author = self._get_resource_mapping(
-                            self._users[journal['user'].id])
+                        if journal['user'].id in self._users:
+                            author = self._get_resource_mapping(
+                                self._users[journal['user'].id])
+                        else:
+                            author = 'Anonymous'
 
                         event = {
                             'author': author,
@@ -1339,7 +1399,9 @@ class IssuesExporter(object):
             if redmine_field == 'subject':
                 jira_internal_value = redmine_value
             elif redmine_field == 'description':
-                fixed_up_description = IssuesExporter._site_specific_journal_fixups(redmine_value, issue_id)
+                fixed_up_description = \
+                    IssuesExporter._site_specific_journal_fixups(redmine_value,
+                        issue_id)
                 jira_internal_value = text2confluence_wiki(fixed_up_description)
             elif redmine_field in ['created_on', 'updated_on',
                                    'start_date', 'due_date']:
@@ -1350,9 +1412,9 @@ class IssuesExporter(object):
             elif redmine_field == 'estimated_hours':
                 jira_internal_value = str(int(float(redmine_value)) * 3600)
             elif redmine_field == 'parent_id':
-                jira_internal_value = redmine_value  # M.Kendall 20191209 parent tasks/sub tasks are not fully setup for importing into Jira yet
+                jira_internal_value = redmine_value
             elif redmine_field == 'is_private':
-                jira_internal_value = redmine_value  # M.Kendall 20191209 is private field is not exported
+                jira_internal_value = redmine_value
             else:
                 raise NotImplementedError(
                     "The field '{}' in a journal detail is not supported!"
@@ -1402,15 +1464,18 @@ class IssuesExporter(object):
         field = self._get_resource_mapping(
             custom_field, resource_type=models.RedmineCustomField)
 
-        if custom_field_def.field_format in ['user', 'version']:
+        if custom_field_def.field_format == 'user':
             if getattr(custom_field_def, 'multiple', False):
                 internal_value, string_value = \
                     zip(*self._get_custom_field_value_mapping(
-                        custom_field, project_id, include_internal_id=True))
+                        custom_field, project_id,
+                        include_internal_id=True
+                        ))
             else:
                 internal_value, string_value = \
                     self._get_custom_field_value_mapping(
-                        custom_field, project_id, include_internal_id=True)
+                        custom_field, project_id,
+                        include_internal_id=True)
         else:
             internal_value = \
                 self._get_custom_field_value_mapping(
@@ -1570,6 +1635,10 @@ class IssuesExporter(object):
                     break
 
         if jira_resource_value is None:
+            if 'User' in resource.__class__.__name__:
+                jira_resource_value = 'unknown'
+
+        if jira_resource_value is None:
             # No value mapping found!
 
             # If there not exist dynamically user-defined value mappings...
@@ -1632,7 +1701,6 @@ class IssuesExporter(object):
                             "{ID}:{identifying_name} form!")
 
                 value_proc = parse_id_unique_name
-
             jira_resource_value = click.prompt(
                 "[{} {}{}{} {}{}] {}"
                 .format(humanized_redmine_resource_type,
