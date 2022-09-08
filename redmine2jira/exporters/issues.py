@@ -7,6 +7,7 @@ from __future__ import unicode_literals
 
 from builtins import str
 import json
+import re
 
 try:
     from contextlib import suppress
@@ -16,6 +17,7 @@ except ImportError:
 from datetime import datetime, timedelta
 from itertools import chain
 from operator import itemgetter
+from collections import defaultdict
 
 import click
 
@@ -62,8 +64,15 @@ class IssuesExporter(object):
         self.pretty_print = pretty_print
         self.export_issues = export_issues
         self.export_links = export_links
+        self.components = defaultdict(set)
         redmine = Redmine(config.REDMINE_URL, key=config.REDMINE_API_KEY,
                           requests={'verify': config.REDMINE_SSL_VERIFY})
+        f = open('private_notes.csv')
+        self.private_notes = set({})
+        for line in f.readlines():
+            _id = re.sub("[^0-9]", "", line)
+            if _id:
+                self.private_notes.add(int(_id))
 
         # Get all Redmine users, groups, projects, trackers, issue statuses,
         # issue priorities, issue custom fields and store them by ID
@@ -194,10 +203,8 @@ class IssuesExporter(object):
         self._resource_value_mappings = dict()
         recordNum = 0
 
-        if self.export_links:
-            links_export = issues_export.setdefault('links', [])
-        else:
-            links_export = []
+        # if self.export_links:
+        #     links_export = issues_export.setdefault('links', [])
 
         for issue in issues:
             recordNum = recordNum + 1
@@ -209,10 +216,13 @@ class IssuesExporter(object):
             # That's because all the issues entities must be children of a
             # project entity in the export dictionary.
             project_export = self._save_project(issue.project, issues_export)
+            if self.component not in self.components[issue.project.id]:
+                self.components[issue.project.id].add(self.component)
+                project_export['components'].append(self.component)
 
             # Create and append new empty issue dictionary
             # to project issues list
-            issue_export = dict()
+            issue_export = {'components': [self.component]}
             if self.export_issues:
                 project_export['issues'].append(issue_export)
 
@@ -241,19 +251,17 @@ class IssuesExporter(object):
             #     self._save_category(issue.category, issue.project.id,
             #                         project_export, issue_export)
 
-            # if hasattr(issue, 'estimated_hours'):
-            #     self._save_estimated_hours(issue.estimated_hours, issue_export)
-
             # # Save custom fields
             # if hasattr(issue, 'custom_fields'):
-            #     self._save_custom_fields(issue.custom_fields, issue.project.id,
+            #     self._save_custom_fields(issue.custom_fields,
+            #     issue.project.id,
             #          issue_export, str(issue.id))
 
             # Save related resources
             self._save_watchers(issue.watchers, issue_export)
             self._save_attachments(issue.attachments, issue_export)
             self._save_journals(issue, issue_export)
-            self._save_time_entries(issue.time_entries)
+            # self._save_time_entries(issue.time_entries)
 
             # TODO Save sub-tasks
             if hasattr(issue, 'parent_id'):
@@ -293,7 +301,8 @@ class IssuesExporter(object):
             project = next((project for project in projects
                             if project['key'] == project_value_mapping))
         except StopIteration:
-            project = {'key': project_value_mapping, 'issues': []}
+            project = {'key': project_value_mapping, 'components': [],
+                'issues': []}
             projects.append(project)
 
         return project
@@ -462,24 +471,14 @@ class IssuesExporter(object):
         """
         return updated_on.isoformat()
 
-    @staticmethod
-    def _site_specific_description_fixups(description, issue_id):
-        # if issue_id == '11192':
-        #     description = re.sub("##########",
-        # "<notextile>##########</notextile>",
-        #                          description)
-
-        # if issue_id == '11900':
-        #     description = re.sub("\*\* Note that with", "* Note that with",
-        #                          description)
-
-        return description
-
-    def add_author_to_message(self, user, message):
-        redmine_user = self._users[user.id]
-        if self._get_resource_mapping(redmine_user) == 'unknown':
-            message = '*%s %s* a dit\\\\%s' % (redmine_user.lastname,
-                redmine_user.firstname, message)
+    def format_message(self, user, message):
+        redmine_user = self._users.get(user.id, None)
+        if redmine_user and self._get_resource_mapping(
+                redmine_user) == 'unknown':
+            first_line = '**%s %s** a dit' % (redmine_user.lastname,
+                redmine_user.firstname)
+            first_line = text2confluence_wiki(first_line)
+            return '%s\\\\%s' % (first_line, text2confluence_wiki(message))
         return message
 
     def _save_description(self, issue, issue_export):
@@ -489,28 +488,8 @@ class IssuesExporter(object):
         :param description: Issue description
         :param issue_export: Single issue export dictionary
         """
-        description = self.add_author_to_message(issue.author,
+        issue_export['description'] = self.format_message(issue.author,
             issue.description)
-
-        fixed_up_description = self._get_description_mapping(description,
-            issue_export['externalId'])
-        issue_export['description'] = fixed_up_description
-
-    @staticmethod
-    def _get_description_mapping(description, issue_id):
-        """
-        Get the Jira value mapping for the description field.
-
-        :param description: Issue description
-        :return: Jira value mapping for the description
-        """
-        if config.REDMINE_TEXT_FORMATTING != 'none':
-            fixed_up_description = \
-                IssuesExporter._site_specific_description_fixups(description,
-                issue_id)
-            description = text2confluence_wiki(fixed_up_description)
-
-        return description
 
     def _save_assigned_to(self, assigned_to, issue_export):
         """
@@ -855,8 +834,8 @@ class IssuesExporter(object):
             #     if hasattr(issue, 'custom_fields'):
             #         tmp_issue_custom_fields = issue.custom_fields
 
-            #     self._collect_journal_details(journal, tmp_issue_custom_fields,
-            #                                   journal_details_by_properties)
+            #     self._collect_journal_details(journal,
+            #          tmp_issue_custom_fields, journal_details_by_properties)
 
         # 1st processing: Coalesce journal details on a per-property basis
         self._coalesce_journal_details(issue, journal_details_by_properties,
@@ -870,29 +849,6 @@ class IssuesExporter(object):
         self._save_journal_details(journals_rebuild, issue.project.id,
                                    issue_export)
 
-    @staticmethod
-    def _site_specific_journal_fixups(comment, issue_id):
-        # if issue_id == '10056':
-        #     # Ordered list starts with 2 hashes instead of one which redmine
-        # is happy about but not Python's textile converter
-        #     comment = re.sub("##", '#', comment)
-
-        # if issue_id == '10891':
-        #     # Ordered list starts with 2 asterisks instead of one which
-        # redmine is happy about but not Python's textile converter
-        #     comment = re.sub("\\*\\*", '*', comment)
-
-        # if issue_id == '11192':
-        #     comment = re.sub("##########",
-        # "<notextile>##########</notextile>",
-        #                      comment)
-
-        # if issue_id == '11900':
-        #     comment = re.sub("\*\* Note that with", "* Note that with",
-        #                      comment)
-
-        return comment
-
     def _save_journal_notes(self, journal, issue_export):
         """
         Save issue journal notes to export dictionary.
@@ -904,24 +860,15 @@ class IssuesExporter(object):
         if journal.user.id in self._users:
             redmine_user = self._users[journal.user.id]
             author = self._get_resource_mapping(redmine_user)
-
-        comment_body = journal.notes
-
-        if config.REDMINE_TEXT_FORMATTING != 'none':
-            fixed_up_comment = IssuesExporter._site_specific_journal_fixups(
-                comment_body, issue_export['externalId'])
-            fixed_up_comment = self.add_author_to_message(journal.user,
-                fixed_up_comment)
-            comment_body = text2confluence_wiki(fixed_up_comment)
-
+        else:
+            author = 'unknown'
         comment_dict = {
             "author": author,
-            "body": comment_body,
+            "body": self.format_message(journal.user, journal.notes),
             "created": journal.created_on.isoformat()
         }
-
-        issue_export.setdefault('comments', []) \
-                    .append(comment_dict)
+        if journal.id not in self.private_notes:
+            issue_export.setdefault('comments', []).append(comment_dict)
 
     @staticmethod
     def _collect_journal_details(journal, custom_fields,
@@ -1499,6 +1446,45 @@ class IssuesExporter(object):
 
         # TODO Save issue total time spent
 
+    def _get_resource_mapping_from_config(self, resource, mapping,
+            redmine_resource_type, project_id=None):
+        # Search for a statically user-defined value mapping
+        for jira_resource_type, field_mapping in mapping.items():
+            # Build ResourceTypeMapping object
+            resource_type_mapping = ResourceTypeMapping(redmine_resource_type,
+                jira_resource_type)
+
+            # Dynamically compose resource type mapping setting name
+            resource_type_mapping_setting_name = \
+                '{}_{}_MAPPINGS'.format(
+                    underscore(redmine_resource_type.__name__).upper(),
+                    underscore(jira_resource_type.__name__).upper())
+
+            # Get the Redmine resource value
+            redmine_resource_value = \
+                getattr(resource, field_mapping.redmine.key)
+
+            # Try to get the Jira resource value from mappings
+            # statically defined in configuration settings
+            static_resource_value_mappings = getattr(config,
+                resource_type_mapping_setting_name, {})
+
+            if project_id is not None:
+                # Use project identifier instead of its internal ID
+                # to fetch per-project resource value mappings inside
+                # user-defined configuration files.
+                project_identifier = self._projects[project_id].identifier
+                static_resource_value_mappings = \
+                    static_resource_value_mappings.get(project_identifier, {})
+
+            jira_resource_value = \
+                static_resource_value_mappings.get(
+                    redmine_resource_value, None)
+
+            if jira_resource_value is not None:
+                # A Jira resource value mapping has been found. Exit!
+                return resource_type_mapping, jira_resource_value
+
     def _get_resource_mapping(self, resource, resource_type=None,
                               project_id=None, include_type_mapping=False,
                               include_internal_id=False):
@@ -1565,44 +1551,13 @@ class IssuesExporter(object):
              for k, v in RESOURCE_TYPE_IDENTIFYING_FIELD_MAPPINGS.items()
              if k.redmine == redmine_resource_type}
 
-        # Search for a statically user-defined value mapping
-        for jira_resource_type, field_mapping in \
-                jira_resource_type_field_mappings.items():
-            # Build ResourceTypeMapping object
-            resource_type_mapping = ResourceTypeMapping(redmine_resource_type,
-                                                        jira_resource_type)
-
-            # Dynamically compose resource type mapping setting name
-            resource_type_mapping_setting_name = \
-                '{}_{}_MAPPINGS'.format(
-                    underscore(redmine_resource_type.__name__).upper(),
-                    underscore(jira_resource_type.__name__).upper())
-
-            # Get the Redmine resource value
-            redmine_resource_value = \
-                getattr(resource, field_mapping.redmine.key)
-
-            # Try to get the Jira resource value from mappings
-            # statically defined in configuration settings
-            static_resource_value_mappings = \
-                getattr(config, resource_type_mapping_setting_name, {})
-
-            if project_id is not None:
-                # Use project identifier instead of its internal ID
-                # to fetch per-project resource value mappings inside
-                # user-defined configuration files.
-                project_identifier = self._projects[project_id].identifier
-                static_resource_value_mappings = \
-                    static_resource_value_mappings.get(project_identifier, {})
-
-            jira_resource_value = \
-                static_resource_value_mappings.get(
-                    redmine_resource_value, None)
-
-            if jira_resource_value is not None:
-                # A Jira resource value mapping has been found. Exit!
-                break
-
+        res = self._get_resource_mapping_from_config(resource,
+            jira_resource_type_field_mappings, redmine_resource_type,
+            project_id=None)
+        if res:
+            resource_type_mapping, jira_resource_value = res
+            if 'Project' in resource.__class__.__name__ and jira_resource_value:
+                self.component = resource.name
         if jira_resource_value is None:
             # Search for a dynamically user-defined value mapping
             for jira_resource_type, field_mapping in \
@@ -1637,6 +1592,23 @@ class IssuesExporter(object):
         if jira_resource_value is None:
             if 'User' in resource.__class__.__name__:
                 jira_resource_value = 'unknown'
+            if 'Project' in resource.__class__.__name__:
+                component = ''
+                level = resource
+                while level.parent and level.parent.id:
+                    if component:
+                        component = '|%s' % component
+                    component = '%s%s' % (level.name, component)
+                    parent = self._projects[level.parent.id]
+                    parent_resource_type, parent_value = \
+                        self._get_resource_mapping_from_config(parent,
+                            jira_resource_type_field_mappings,
+                            redmine_resource_type)
+                    if parent_value:
+                        jira_resource_value = parent_value
+                        self.component = component
+                        break
+                    level = parent
 
         if jira_resource_value is None:
             # No value mapping found!
