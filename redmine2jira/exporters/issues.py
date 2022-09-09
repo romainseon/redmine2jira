@@ -278,7 +278,7 @@ class IssuesExporter(object):
             # TODO time tracking
             issue_export['key'] = '%s-%s' % (project_export['key'],
                 issue_export['externalId'])
-            issue_export.pop('externalId')
+            # issue_export.pop('externalId')
 
         if self.pretty_print:
             json.dump(issues_export, self.output, indent=4)
@@ -477,9 +477,9 @@ class IssuesExporter(object):
                 redmine_user) == 'unknown':
             first_line = '**%s %s** a dit' % (redmine_user.lastname,
                 redmine_user.firstname)
-            first_line = text2confluence_wiki(first_line)
-            return '%s\\\\%s' % (first_line, text2confluence_wiki(message))
-        return message
+            first_line = self.format_md(first_line)
+            return '%s\\\\%s' % (first_line, self.format_md(message))
+        return self.format_md(message)
 
     def _save_description(self, issue, issue_export):
         """
@@ -680,7 +680,7 @@ class IssuesExporter(object):
                     # Therefore we make the assumption that if the Redmine
                     # administrator enabled the text formatting at system
                     # level, he did it for text custom fields as well.
-                    jira_value = text2confluence_wiki(redmine_value)
+                    jira_value = self.format_md(redmine_value)
             elif custom_field_def.field_format == 'user':
                 if getattr(custom_field_def, 'multiple', False):
                     user_ids = set(map(int, redmine_value))
@@ -1288,6 +1288,16 @@ class IssuesExporter(object):
 
                     event['items'].append(item)
 
+    def format_md(self, markdown, ):
+        for pattern in re.findall(r'!\[\]\([^)]*\)', markdown):
+            if 'https://support.coopengo.com/attachments/download/' in pattern:
+                image = pattern.split('/')[-1][:-1]
+            else:
+                image = pattern[4:-1]
+            markdown = markdown.replace(pattern,
+                'my_image_sep%s|width=800,height=400my_image_sep' % image)
+        return text2confluence_wiki(markdown).replace('my_image_sep', '!')
+
     def _get_journal_detail_field_mapping(self, redmine_field, redmine_value,
                                           project_id, issue_id):
         """
@@ -1349,7 +1359,7 @@ class IssuesExporter(object):
                 fixed_up_description = \
                     IssuesExporter._site_specific_journal_fixups(redmine_value,
                         issue_id)
-                jira_internal_value = text2confluence_wiki(fixed_up_description)
+                jira_internal_value = self.format_md(fixed_up_description)
             elif redmine_field in ['created_on', 'updated_on',
                                    'start_date', 'due_date']:
                 jira_internal_value = \
